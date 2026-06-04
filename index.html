@@ -1,1 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cotizador de Transporte de Carga</title>
+  <!-- Tailwind CSS para diseño -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <!-- Leaflet CSS y JS para el mapa -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+    #map { height: 350px; width: 100%; border-radius: 0.5rem; margin-top: 1rem; }
+    label { font-size: 0.875rem; font-weight: 600; color: #475569; display: block; margin-bottom: 0.25rem; }
+    input, select, textarea { width: 100%; border: 1px solid #cbd5e1; padding: 0.6rem; border-radius: 0.375rem; font-size: 0.95rem; }
+    input:focus, select:focus { outline: none; border-color: #2563eb; ring: 2px; --tw-ring-color: #3b82f6; }
+  </style>
+</head>
+<body class="p-4 md:p-8 bg-slate-100">
 
+  <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+    
+    <!-- PANEL IZQUIERDO Y CENTRAL: CONFIGURACIÓN Y OPERACIÓN -->
+    <div class="lg:col-span-2 space-y-6">
+      <div class="flex justify-between items-start">
+        <div>
+          <span class="text-xs font-bold text-blue-600 tracking-wider uppercase">Transporte de Carga</span>
+          <h1 class="text-3xl font-extrabold text-slate-800 mt-0.5">Cotizador operativo</h1>
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center text-xs font-bold text-slate-600 shadow-sm">
+          Folio<br><span class="text-sm font-black text-slate-800">COT-0001</span>
+        </div>
+      </div>
+
+      <!-- Datos del servicio -->
+      <div class="border border-slate-200 rounded-xl p-4 space-y-4">
+        <h2 class="text-xs font-bold text-blue-800 uppercase tracking-wide border-b border-slate-100 pb-2">Datos del servicio</h2>
+        
+        <div>
+          <label for="clientName">Cliente</label>
+          <input id="clientName" type="text" placeholder="Nombre del cliente" value="Cliente General">
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="origenInput">Origen</label>
+            <textarea id="origenInput" rows="2">Toluca, Estado de México, 50000, México</textarea>
+            <button id="btnOrigen" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">Buscar inicio</button>
+          </div>
+          <div>
+            <label for="destinoInput">Destino</label>
+            <textarea id="destinoInput" rows="2">Tijuana, Municipio de Tijuana, Baja California, 22320, México</textarea>
+            <button id="btnDestino" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">Buscar destino</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="salidaInput">Salida programada</label>
+            <input id="salidaInput" type="datetime-local" value="2026-06-04T11:01">
+          </div>
+          <div>
+            <label for="unitType">Tipo de unidad</label>
+            <select id="unitType">
+              <option value="pickup">Pickup 1.5 t</option>
+              <option value="rabon">Rabon 8 t</option>
+              <option value="torton">Torton 15 t</option>
+              <option value="trailer" selected>Trailer 53 ft</option>
+              <option value="full">Full / doble remolque</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Inputs de Distancia, Tarifa por Km, Casetas y Extras -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+          <div>
+            <label for="inputKm">Kilómetros totales</label>
+            <input id="inputKm" type="number" min="0" step="0.1" value="2687.3">
+          </div>
+          <div>
+            <label for="tarifaKmInput">Tarifa por Km ($)</label>
+            <input id="tarifaKmInput" type="number" min="0" step="0.01" value="40.24" class="bg-blue-50 font-bold text-blue-900 border-blue-400">
+          </div>
+          <div>
+            <label for="casetasInput">Casetas ($)</label>
+            <input id="casetasInput" type="number" min="0" step="1" value="1850" class="bg-amber-50 font-bold text-amber-900 border-amber-400">
+          </div>
+          <div>
+            <label for="maniobrasInput">Maniobras / extras</label>
+            <input id="maniobrasInput" type="number" min="0" step="1" value="1500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label for="ivaInput">IVA %</label>
+            <input id="ivaInput" type="number" min="0" max="100" value="16">
+          </div>
+          <div>
+            <label for="apiCapufe">API casetas CAPUFE / MAPPIR</label>
+            <input id="apiCapufe" type="text" value="https://tu-api.com/capufe/ruta" placeholder="URL del Endpoint">
+          </div>
+          <div>
+            <label for="fuenteCasetas">Fuente de casetas</label>
+            <select id="fuenteCasetas">
+              <option value="Automatico" selected>Automático (Por Km)</option>
+              <option value="Manual">Manual</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección de Consumo Diesel -->
+      <div class="border border-slate-200 rounded-xl p-4 space-y-4 bg-slate-50">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+          <strong class="text-slate-700 text-sm">Consumo diesel</strong>
+          <span id="fuelSummary" class="text-xs text-slate-500 font-semibold">0 L estimados - $0.00 / km</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label for="fuelMode">Condicion del viaje</label>
+            <select id="fuelMode">
+              <option value="loaded" selected>Con carga</option>
+              <option value="empty">Vacio</option>
+            </select>
+          </div>
+          <div>
+            <label for="dieselPrice">Precio diesel por litro</label>
+            <input id="dieselPrice" type="number" min="0" step="0.01" value="25.50">
+          </div>
+          <div>
+            <label for="activeKmL">Rendimiento usado</label>
+            <input id="activeKmL" type="text" value="0 km/L" readonly class="bg-slate-100 font-bold text-slate-700">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-dashed border-slate-200">
+          <div>
+            <label for="emptyKmL" class="text-slate-500">Rendimiento vacio km/L</label>
+            <input id="emptyKmL" type="number" value="3.2" readonly class="bg-slate-100 text-slate-500">
+          </div>
+          <div>
+            <label for="loadedKmL" class="text-slate-500">Rendimiento con carga km/L</label>
+            <input id="loadedKmL" type="number" value="2.4" readonly class="bg-slate-100 text-slate-500">
+          </div>
+        </div>
+      </div>
+
+      <!-- Tiempo Estimado Operativo -->
+      <div class="border border-slate-200 rounded-xl p-4 space-y-4">
+        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wide border-b border-slate-100 pb-2">Tiempo estimado</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label for="velocidadInput">Velocidad promedio km/h</label>
+            <input id="velocidadInput" type="number" value="81">
+          </div>
+          <div>
+            <label for="cargaInput">Carga / espera (h)</label>
+            <input id="cargaInput" type="number" step="0.1" value="1.5">
+          </div>
+          <div>
+            <label for="descansoInput">Descanso / margen (h)</label>
+            <input id="descansoInput" type="number" step="0.1" value="0.5">
+          </div>
+        </div>
+        <div>
+          <label for="observacionesInput">Observaciones</label>
+          <textarea id="observacionesInput" placeholder="Condiciones, vigencia, restricciones o referencias internas" rows="2"></textarea>
+        </div>
+      </div>
+
+      <!-- Ruta y controles del Mapa -->
+      <div class="border border-slate-200 rounded-xl p-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <strong class="text-slate-800 text-sm block">Ruta exacta</strong>
+            <span class="text-xs text-slate-500">Ruta calculada con coordenadas y kilómetros reales.</span>
+          </div>
+          <div class="flex gap-2 w-full sm:w-auto text-xs">
+            <button id="btnMarkInicio" class="bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-3 rounded-md shadow-sm transition">Marcar inicio</button>
+            <button id="btnMarkDestino" class="bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-3 rounded-md shadow-sm transition">Marcar destino</button>
+            <button id="btnCalcular" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-sm transition flex-1 sm:flex-none">Calcular ruta y casetas</button>
+          </div>
+        </div>
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <!-- PANEL DERECHO: RESUMEN FINANCIERO Y TOTALES -->
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-6 h-fit sticky top-6">
+      <div>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Resumen</h3>
+        <p id="resumenRutaTexto" class="text-slate-700 font-semibold mt-1 text-sm leading-relaxed">
+          Toluca, Estado de México, 50000, México -> Tijuana, Municipio de Tijuana, Baja California, 22320, México
+        </p>
+        <span id="badgeUnidad" class="inline-block mt-2 bg-slate-200 text-slate-800 text-xs font-bold px-2.5 py-0.5 rounded">Trailer 53 ft</span>
+      </div>
+
+      <!-- Gran Cuadro Azul Marino -->
+      <div class="bg-[#1e293b] text-white rounded-xl p-5 shadow-inner text-center">
+        <span class="text-xs uppercase tracking-widest text-slate-400 block font-medium">Total cotizado</span>
+        <span id="totalCotizado" class="text-4xl font-black block my-1.5 tracking-tight">$0.00</span>
+        <span id="labelLlegada" class="text-xs text-slate-400 block">Llegada estimada: Pendiente</span>
+      </div>
+
+      <!-- Cuadros informativos simétricos -->
+      <div class="grid grid-cols-2 gap-4 text-xs">
+        <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+          <span class="text-slate-400 block font-medium">Trayecto</span>
+          <strong id="resumenTiempo" class="text-slate-700 text-sm block mt-0.5">35 h 11 min</strong>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+          <span class="text-slate-400 block font-medium">Distancia</span>
+          <strong id="resumenDistancia" class="text-slate-700 text-sm block mt-0.5">2687.3 km</strong>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 text-xs">
+        <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+          <span class="text-slate-400 block font-medium">Tarifa efectiva/km</span>
+          <strong id="tarifaBaseDisplay" class="text-slate-700 text-sm block mt-0.5">$40.24 / km</strong>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+          <span class="text-slate-400 block font-medium">Capacidad referencia</span>
+          <strong id="capacidadDisplay" class="text-slate-700 text-sm block mt-0.5">26 t / 53 ft</strong>
+        </div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl p-3 text-xs shadow-sm">
+        <span class="text-slate-400 block font-medium">Diesel estimado</span>
+        <strong id="resumenDieselLitersCard" class="text-slate-700 text-sm block mt-0.5">0 L</strong>
+      </div>
+
+      <!-- Desglose de Costos Finales -->
+      <div class="border-t border-slate-200 pt-4 space-y-2.5 text-sm">
+        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Desglose</h4>
+        
+        <div class="flex justify-between items-center">
+          <span class="text-slate-600">Flete base</span>
+          <strong id="fleteBaseAmount" class="text-slate-800">$0.00</strong>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-slate-600">Maniobras / extras</span>
+          <strong id="marginAmount" class="text-slate-800">$0.00</strong>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-slate-600">Diesel (<span id="fuelLiters">0 L</span>)</span>
+          <strong id="fuelAmount" class="text-slate-800">$0.00</strong>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-slate-600">Casetas</span>
+          <strong id="tollsAmount" class="text-slate-800">$0.00</strong>
+        </div>
+        <div class="flex justify-between items-center border-t border-dashed border-slate-200 pt-2 font-semibold text-slate-700">
+          <span>IVA</span>
+          <span id="ivaAmountDisplay">$0.00</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MOTOR LÓGICO COMPLETO -->
+  <script>
+    // Perfiles operativos de vehículos logísticos
+    const unitProfiles = {
+      pickup: { name: "Pickup 1.5 t", multiplier: 1, capacity: "1.5 t", tollClass: "C2", emptyKmL: 9.5, loadedKmL: 7.2 },
+      rabon: { name: "Rabon 8 t", multiplier: 1.28, capacity: "8 t", tollClass: "C2-C3", emptyKmL: 6.2, loadedKmL: 4.8 },
+      torton: { name: "Torton 15 t", multiplier: 1.52, capacity: "15 t", tollClass: "C3", emptyKmL: 4.5, loadedKmL: 3.3 },
+      trailer: { name: "Trailer 53 ft", multiplier: 1.9, capacity: "26 t / 53 ft", tollClass: "T3-S2", emptyKmL: 3.2, loadedKmL: 2.4 },
+      full: { name: "Full / doble remolque", multiplier: 2.35, capacity: "Hasta 50 t", tollClass: "T3-S2-R4", emptyKmL: 2.5, loadedKmL: 1.8 }
+    };
+
+    // Configuración Inicial del Mapa
+    const map = L.map('map').setView([23.6345, -102.5528], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let coordOrigen = [19.2826, -99.6557]; 
+    let coordDestino = [32.5149, -117.0382]; 
+    let polylineRuta = null;
+
+    L.marker(coordOrigen).addTo(map).bindPopup("Origen");
+    L.marker(coordDestino).addTo(map).bindPopup("Destino");
+
+    // ==========================================
+    // FUNCIÓN DE AUTOMATIZACIÓN DE CASETAS
+    // ==========================================
+    function calcularCasetasAutomaticas(distanciaKm, perfilUnidad) {
+      const fuente = document.getElementById('fuenteCasetas').value;
+      
+      if (fuente === 'Manual') {
+        return parseFloat(document.getElementById('casetasInput').value) || 0;
+      } else {
+        const COSTO_BASE_CASETA_KM = 2.20; 
+        const costoEstimado = distanciaKm * COSTO_BASE_CASETA_KM * perfilUnidad.multiplier;
+        
+        document.getElementById('casetasInput').value = Math.round(costoEstimado);
+        return Math.round(costoEstimado);
+      }
+    }
+
+    // ==========================================
+    // MOTOR DE CÁLCULO FINANCIERO INTEGRAL
+    // ==========================================
+    function ejecutarRecalculoGlobal() {
+      const kilometros = parseFloat(document.getElementById('inputKm').value) || 0;
+      // AQUÍ SE LEE TU INPUT DE TARIFA POR KM EN TIEMPO REAL:
+      const tarifaPorKmDinamica = parseFloat(document.getElementById('tarifaKmInput').value) || 0;
+      
+      const tipoUnidad = document.getElementById('unitType').value;
+      const perfil = unitProfiles[tipoUnidad];
+      const fuelMode = document.getElementById('fuelMode').value;
+      const precioDiesel = parseFloat(document.getElementById('dieselPrice').value) || 25.50;
+      const maniobras = parseFloat(document.getElementById('maniobrasInput').value) || 0;
+      const porcentajeIva = parseFloat(document.getElementById('ivaInput').value) || 0;
+
+      // 1. Determinar rendimientos y actualizarlos en pantalla
+      const rendimiento = fuelMode === 'loaded' ? perfil.loadedKmL : perfil.emptyKmL;
+      document.getElementById('activeKmL').value = `${rendimiento} km/L`;
+      document.getElementById('emptyKmL').value = perfil.emptyKmL;
+      document.getElementById('loadedKmL').value = perfil.loadedKmL;
+      document.getElementById('badgeUnidad').innerText = perfil.name;
+      document.getElementById('capacidadDisplay').innerText = perfil.capacity;
+
+      // 2. Ejecutar cálculo automatizado o manual de casetas
+      const costoCasetas = calcularCasetasAutomaticas(kilometros, perfil);
+
+      // 3. Cálculos financieros usando la tarifa por km que tú ingreses
+      const fleteBase = kilometros * tarifaPorKmDinamica;
+      const litrosDiesel = rendimiento > 0 ? (kilometros / rendimiento) : 0;
+      const costoDiesel = litrosDiesel * precioDiesel;
+      const costoDieselPorKm = kilometros > 0 ? (costoDiesel / kilometros) : 0;
+
+      // 4. Integrar Subtotal, IVA y Gran Total
+      const subtotal = fleteBase + maniobras + costoDiesel + costoCasetas;
+      const montoIva = subtotal * (porcentajeIva / 100);
+      const granTotal = subtotal + montoIva;
+
+      // 5. Renderizar textos formateados a Moneda Mexicana MXN
+      const fmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+
+      document.getElementById('totalCotizado').innerText = fmt.format(granTotal);
+      document.getElementById('fleteBaseAmount').innerText = fmt.format(fleteBase);
+      document.getElementById('marginAmount').innerText = fmt.format(maniobras);
+      document.getElementById('fuelAmount').innerText = fmt.format(costoDiesel);
+      document.getElementById('tollsAmount').innerText = fmt.format(costoCasetas);
+      document.getElementById('ivaAmountDisplay').innerText = fmt.format(montoIva);
+
+      document.getElementById('fuelLiters').innerText = `${litrosDiesel.toFixed(0)} L`;
+      document.getElementById('resumenDieselLitersCard').innerText = `${litrosDiesel.toFixed(0)} L`;
+      document.getElementById('fuelSummary').innerHTML = `<strong>${litrosDiesel.toFixed(0)} L estimados</strong> - $${costoDieselPorKm.toFixed(2)} / km`;
+      document.getElementById('resumenDistancia').innerText = `${kilometros.toFixed(1)} km`;
+      
+      // CORRECCIÓN AQUÍ: Ahora la tarjeta derecha cambia dinámicamente con tu input
+      document.getElementById('tarifaBaseDisplay').innerText = fmt.format(tarifaPorKmDinamica) + ' / km';
+
+      // 6. Tiempos Operativos Estimados
+      const velocidad = parseFloat(document.getElementById('velocidadInput').value) || 80;
+      const hCarga = parseFloat(document.getElementById('cargaInput').value) || 0;
+      const hDescanso = parseFloat(document.getElementById('descansoInput').value) || 0;
+
+      if (velocidad > 0 && kilometros > 0) {
+        const horasTransito = kilometros / velocidad;
+        const tiempoTotalHoras = horasTransito + hCarga + hDescanso;
+        
+        const hEnteras = Math.floor(tiempoTotalHoras);
+        const mRestantes = Math.round((tiempoTotalHoras - hEnteras) * 60);
+        
+        document.getElementById('resumenTiempo').innerText = `${hEnteras} h ${mRestantes} min`;
+
+        let fechaLlegada = new Date();
+        fechaLlegada.setMinutes(fechaLlegada.getMinutes() + (tiempoTotalHoras * 60));
+        const opciones = { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
+        
+        document.getElementById('labelLlegada').innerText = `Llegada estimada: ${fechaLlegada.toLocaleString('es-MX', opciones)}`;
+        document.getElementById('resumenLlegadaCard').innerText = fechaLlegada.toLocaleString('es-MX', opciones);
+      }
+    }
+
+    // ==========================================
+    // CAPTURA DE EVENTOS
+    // ==========================================
+    document.getElementById('btnCalcular').addEventListener('click', function() {
+      const origen = document.getElementById('origenInput').value;
+      const destino = document.getElementById('destinoInput').value;
+      document.getElementById('resumenRutaTexto').innerText = `${origen} -> ${destino}`;
+
+      if (polylineRuta) { map.removeLayer(polylineRuta); }
+      polylineRuta = L.polyline([coordOrigen, [22.0, -102.0], [26.0, -105.0], coordDestino], {color: '#1e40af', weight: 5}).addTo(map);
+      map.fitBounds(polylineRuta.getBounds());
+
+      ejecutarRecalculoGlobal();
+    });
+
+    // Escuchadores que activan el cálculo al escribir en cualquier celda
+    document.getElementById('unitType').addEventListener('change', ejecutarRecalculoGlobal);
+    document.getElementById('fuelMode').addEventListener('change', ejecutarRecalculoGlobal);
+    document.getElementById('fuenteCasetas').addEventListener('change', ejecutarRecalculoGlobal);
+    
+    document.getElementById('inputKm').addEventListener('input', ejecutarRecalculoGlobal);
+    document.getElementById('tarifaKmInput').addEventListener('input', ejecutarRecalculoGlobal); // Escucha tu cambio de costo/km
+    document.getElementById('casetasInput').addEventListener('input', ejecutarRecalculoGlobal);
+    document.getElementById('maniobrasInput').addEventListener('input', ejecutarRecalculoGlobal);
+    document.getElementById('ivaInput').addEventListener('input', ejecutarRecalculoGlobal);
+    document.getElementById('dieselPrice').addEventListener('input', ejecutarRecalculoGlobal);
+    document.getElementById('velocidadInput').addEventListener('input', ejecutarRecalculoGlobal);
+    document.getElementById('cargaInput').addEventListener('input', ejecutarRecalculoGlobal);
+    document.getElementById('descansoInput').addEventListener('input', ejecutarRecalculoGlobal);
+
+    window.onload = ejecutarRecalculoGlobal;
+
+    document.getElementById('btnMarkInicio').addEventListener('click', () => alert("Marcador de origen fijado."));
+    document.getElementById('btnMarkDestino').addEventListener('click', () => alert("Marcador de destino fijado."));
+    document.getElementById('btnOrigen').addEventListener('click', () => alert("Buscando Origen..."));
+    document.getElementById('btnDestino').addEventListener('click', () => alert("Buscando Destino..."));
+  </script>
+</body>
+</html>
