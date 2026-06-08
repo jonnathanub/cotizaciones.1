@@ -75,11 +75,11 @@
           </div>
           <div>
             <label for="tarifaKmInput">Tarifa por Km ($)</label>
-            <input id="tarifaKmInput" type="number" min="0" step="0.01" value="40.24" class="bg-blue-50 font-bold text-blue-900 border-blue-400">
+            <input id="tarifaKmInput" type="number" min="0" step="0.01" value="17.00" class="bg-blue-50 font-bold text-blue-900 border-blue-400">
           </div>
           <div>
             <label for="casetasInput">Casetas ($)</label>
-            <input id="casetasInput" type="number" min="0" step="1" value="1850" class="bg-amber-50 font-bold text-amber-900 border-amber-400">
+            <input id="casetasInput" type="number" min="0" step="1" value="2500" class="bg-amber-50 font-bold text-amber-900 border-amber-400">
           </div>
           <div>
             <label for="maniobrasInput">Maniobras / extras</label>
@@ -99,8 +99,8 @@
           <div>
             <label for="fuenteCasetas">Fuente de casetas</label>
             <select id="fuenteCasetas">
-              <option value="Automatico" selected>Automático (Por Km)</option>
-              <option value="Manual">Manual</option>
+              <option value="Automatico">Automático (Por Km)</option>
+              <option value="Manual" selected>Manual</option>
             </select>
           </div>
         </div>
@@ -174,7 +174,7 @@
       <div>
         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Resumen</h3>
         <p id="resumenRutaTexto" class="text-slate-700 font-semibold mt-1 text-sm leading-relaxed">
-          Toluca, Estado de México, 50000, México -> Tijuana, Municipio de Tijuana, Baja California, 22320, México
+          Toluca, Estado de México, México -> Tijuana, Baja California, México
         </p>
         <span id="badgeUnidad" class="inline-block mt-2 bg-slate-200 text-slate-800 text-xs font-bold px-2.5 py-0.5 rounded">Trailer 53 ft</span>
       </div>
@@ -256,13 +256,13 @@
     let markerDestino = null;
     let polylineRuta = null;
 
-    // Función asíncrona real para buscar direcciones usando Nominatim (Evita que la pantalla se congele)
+    // Función asíncrona real para buscar direcciones usando Nominatim acotado a México
     async function buscarDireccion(idInput, tipo) {
       const query = document.getElementById(idInput).value;
-      if (!query) return;
+      if (!query) return false;
 
       try {
-        const respuesta = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+        const respuesta = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=mx&q=${encodeURIComponent(query)}`);
         const datos = await respuesta.json();
         
         if (datos && datos.length > 0) {
@@ -277,7 +277,7 @@
             markerDestino = L.marker([lat, lon], { draggable: true }).addTo(map).bindPopup("Destino").openPopup();
           }
 
-          // Si ambos existen, ajustar la vista del mapa
+          // Si ambos existen, ajustar la vista del mapa y calcular coordenadas
           if (markerOrigen && markerDestino) {
             const grupo = new L.featureGroup([markerOrigen, markerDestino]);
             map.fitBounds(grupo.getBounds().pad(0.2));
@@ -285,11 +285,14 @@
           } else {
             map.setView([lat, lon], 12);
           }
+          return true;
         } else {
-          alert("No se encontraron resultados para la dirección ingresada.");
+          alert(`No se encontraron resultados para el ${tipo} ingresado: "${query}". Por favor verifica la ortografía.`);
+          return false;
         }
       } catch (error) {
         console.error("Error al buscar la ubicación:", error);
+        return false;
       }
     }
 
@@ -300,7 +303,7 @@
       const p1 = markerOrigen.getLatLng();
       const p2 = markerDestino.getLatLng();
       
-      // Distancia en línea recta multiplicada por 1.25 (factor de curvatura promedio de carreteras en México)
+      // Distancia en línea recta multiplicada por 1.27 (factor de curvatura promedio de carreteras en México)
       const distanciaFisica = p1.distanceTo(p2) / 1000;
       const kilometrosCarretera = distanciaFisica * 1.27; 
       
@@ -386,14 +389,22 @@
       }
     }
 
-    // Vinculación de Eventos de Botón (Llamadas asíncronas fluidas)
+    // Vinculación de Eventos de Botón
     document.getElementById('btnOrigen').addEventListener('click', () => buscarDireccion('origenInput', 'origen'));
     document.getElementById('btnDestino').addEventListener('click', () => buscarDireccion('destinoInput', 'destino'));
     
-    document.getElementById('btnCalcular').addEventListener('click', function() {
+    // CORRECCIÓN: El botón Calcular ahora busca los puntos en el mapa automáticamente si no han sido validados
+    document.getElementById('btnCalcular').addEventListener('click', async function() {
       const origen = document.getElementById('origenInput').value;
       const destino = document.getElementById('destinoInput').value;
+      
       document.getElementById('resumenRutaTexto').innerText = `${origen} -> ${destino}`;
+      
+      // Intentar buscar dinámicamente ambas ubicaciones antes de correr el recalculo
+      const exitoOrigen = await buscarDireccion('origenInput', 'origen');
+      const exitoDestino = await buscarDireccion('destinoInput', 'destino');
+      
+      // Si todo sale bien o el mapa ya tiene marcadores válidos, forzamos la actualización completa
       ejecutarRecalculoGlobal();
     });
 
