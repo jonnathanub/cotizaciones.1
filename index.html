@@ -38,6 +38,17 @@
           <input id="clientName" type="text" placeholder="Nombre del cliente" value="Cliente General">
         </div>
 
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <strong class="text-slate-800 text-sm block">Mapa de Ruta</strong>
+              <span class="text-xs text-slate-500">Escribe los puntos abajo y presiona el botón verde para trazar la ruta.</span>
+            </div>
+            <button id="btnCalcular" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-md shadow-sm transition">Calcular ruta y casetas</button>
+          </div>
+          <div id="map"></div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label for="origenInput">Origen</label>
@@ -49,17 +60,6 @@
             <textarea id="destinoInput" rows="2">Tijuana, Baja California, México</textarea>
             <button id="btnDestino" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition">Buscar destino</button>
           </div>
-        </div>
-
-        <div class="border-t border-b border-slate-100 py-4">
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <strong class="text-slate-800 text-sm block">Ruta exacta</strong>
-              <span class="text-xs text-slate-500">Puedes usar el botón verde para buscar y trazar ambos puntos a la vez.</span>
-            </div>
-            <button id="btnCalcular" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-md shadow-sm transition">Calcular ruta y casetas</button>
-          </div>
-          <div id="map"></div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -293,7 +293,7 @@
     }
 
     function calcularDistanciaPorCoordenadas() {
-      if (!markerOrigen || !markerDestino) return;
+      if (!markerOrigen || !markerDestino) return 0;
       
       const p1 = markerOrigen.getLatLng();
       const p2 = markerDestino.getLatLng();
@@ -305,6 +305,8 @@
       
       if (polylineRuta) map.removeLayer(polylineRuta);
       polylineRuta = L.polyline([p1, p2], { color: '#2563eb', weight: 5, dashArray: '5, 10' }).addTo(map);
+
+      return kilometrosCarretera;
     }
 
     function calcularCasetasAutomaticas(distanciaKm, perfilUnidad) {
@@ -312,6 +314,7 @@
       if (fuente === 'Manual') {
         return parseFloat(document.getElementById('casetasInput').value) || 0;
       } else {
+        // CORRECCIÓN: Factor de cálculo directo basado en los kilómetros reales recién obtenidos
         const COSTO_BASE_CASETA_KM = 2.20; 
         const costoEstimado = distanciaKm * COSTO_BASE_CASETA_KM * perfilUnidad.multiplier;
         document.getElementById('casetasInput').value = Math.round(costoEstimado);
@@ -337,6 +340,7 @@
       document.getElementById('badgeUnidad').innerText = perfil.name;
       document.getElementById('capacidadDisplay').innerText = perfil.capacity;
 
+      // CORRECCIÓN: Aseguramos que tome el kilometraje actualizado
       const costoCasetas = calcularCasetasAutomaticas(kilometros, perfil);
 
       const fleteBase = kilometros * tarifaPorKm;
@@ -393,12 +397,14 @@
       
       document.getElementById('resumenRutaTexto').innerText = `${origen} -> ${destino}`;
       
+      // Sincronizar búsquedas
       await Promise.all([
         buscarDireccion('origenInput', 'origen'),
         buscarDireccion('destinoInput', 'destino')
       ]);
       
-      calcularDistanciaPorCoordenadas();
+      // Forzar encuadre de mapa y cálculo síncrono secuencial
+      const kmObtenidos = calcularDistanciaPorCoordenadas();
       ejecutarRecalculoGlobal();
 
       if (markerOrigen && markerDestino) {
