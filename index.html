@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cotizador de Transporte de Carga</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@3.4.15"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
@@ -51,6 +51,17 @@
           </div>
         </div>
 
+        <div class="border-t border-b border-slate-100 py-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <strong class="text-slate-800 text-sm block">Ruta exacta</strong>
+              <span class="text-xs text-slate-500">Puedes usar el botón verde para buscar y trazar ambos puntos a la vez.</span>
+            </div>
+            <button id="btnCalcular" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-md shadow-sm transition">Calcular ruta y casetas</button>
+          </div>
+          <div id="map"></div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label for="salidaInput">Salida programada</label>
@@ -75,11 +86,11 @@
           </div>
           <div>
             <label for="tarifaKmInput">Tarifa por Km ($)</label>
-            <input id="tarifaKmInput" type="number" min="0" step="0.01" value="17.00" class="bg-blue-50 font-bold text-blue-900 border-blue-400">
+            <input id="tarifaKmInput" type="number" min="0" step="0.01" value="40.24" class="bg-blue-50 font-bold text-blue-900 border-blue-400">
           </div>
           <div>
             <label for="casetasInput">Casetas ($)</label>
-            <input id="casetasInput" type="number" min="0" step="1" value="2500" class="bg-amber-50 font-bold text-amber-900 border-amber-400">
+            <input id="casetasInput" type="number" min="0" step="1" value="1850" class="bg-amber-50 font-bold text-amber-900 border-amber-400">
           </div>
           <div>
             <label for="maniobrasInput">Maniobras / extras</label>
@@ -99,8 +110,8 @@
           <div>
             <label for="fuenteCasetas">Fuente de casetas</label>
             <select id="fuenteCasetas">
-              <option value="Automatico">Automático (Por Km)</option>
-              <option value="Manual" selected>Manual</option>
+              <option value="Automatico" selected>Automático (Por Km)</option>
+              <option value="Manual">Manual</option>
             </select>
           </div>
         </div>
@@ -156,17 +167,6 @@
             <input id="descansoInput" type="number" step="0.1" value="0.5">
           </div>
         </div>
-      </div>
-
-      <div class="border border-slate-200 rounded-xl p-4">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <strong class="text-slate-800 text-sm block">Ruta exacta</strong>
-            <span class="text-xs text-slate-500">Usa los botones superiores de búsqueda para posicionar los marcadores automáticamente.</span>
-          </div>
-          <button id="btnCalcular" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-md shadow-sm transition">Calcular ruta y casetas</button>
-        </div>
-        <div id="map"></div>
       </div>
     </div>
 
@@ -248,7 +248,6 @@
       full: { name: "Full / doble remolque", multiplier: 2.35, capacity: "Hasta 50 t", emptyKmL: 2.5, loadedKmL: 1.8 }
     };
 
-    // Inicializar mapa en México
     const map = L.map('map').setView([23.6345, -102.5528], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
@@ -256,13 +255,19 @@
     let markerDestino = null;
     let polylineRuta = null;
 
-    // Función asíncrona real para buscar direcciones usando Nominatim acotado a México
     async function buscarDireccion(idInput, tipo) {
       const query = document.getElementById(idInput).value;
       if (!query) return false;
 
       try {
-        const respuesta = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=mx&q=${encodeURIComponent(query)}`);
+        const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=mx&q=${encodeURIComponent(query)}&email=cotizadortransporte@example.com`;
+        
+        const respuesta = await fetch(url, {
+          headers: {
+            'User-Agent': 'CotizadorDeCargaCarreterasMexico/1.0'
+          }
+        });
+        
         const datos = await respuesta.json();
         
         if (datos && datos.length > 0) {
@@ -276,18 +281,9 @@
             if (markerDestino) map.removeLayer(markerDestino);
             markerDestino = L.marker([lat, lon], { draggable: true }).addTo(map).bindPopup("Destino").openPopup();
           }
-
-          // Si ambos existen, ajustar la vista del mapa y calcular coordenadas
-          if (markerOrigen && markerDestino) {
-            const grupo = new L.featureGroup([markerOrigen, markerDestino]);
-            map.fitBounds(grupo.getBounds().pad(0.2));
-            calcularDistanciaPorCoordenadas();
-          } else {
-            map.setView([lat, lon], 12);
-          }
           return true;
         } else {
-          alert(`No se encontraron resultados para el ${tipo} ingresado: "${query}". Por favor verifica la ortografía.`);
+          alert(`No se encontraron resultados para el ${tipo}: "${query}". Intenta especificando mejor.`);
           return false;
         }
       } catch (error) {
@@ -296,24 +292,19 @@
       }
     }
 
-    // Calcular distancia geométrica real entre coordenadas (Fórmula Haversine)
     function calcularDistanciaPorCoordenadas() {
       if (!markerOrigen || !markerDestino) return;
       
       const p1 = markerOrigen.getLatLng();
       const p2 = markerDestino.getLatLng();
       
-      // Distancia en línea recta multiplicada por 1.27 (factor de curvatura promedio de carreteras en México)
       const distanciaFisica = p1.distanceTo(p2) / 1000;
       const kilometrosCarretera = distanciaFisica * 1.27; 
       
       document.getElementById('inputKm').value = kilometrosCarretera.toFixed(1);
       
-      // Trazar línea visual en el mapa
       if (polylineRuta) map.removeLayer(polylineRuta);
       polylineRuta = L.polyline([p1, p2], { color: '#2563eb', weight: 5, dashArray: '5, 10' }).addTo(map);
-      
-      ejecutarRecalculoGlobal();
     }
 
     function calcularCasetasAutomaticas(distanciaKm, perfilUnidad) {
@@ -339,7 +330,6 @@
       const maniobras = parseFloat(document.getElementById('maniobrasInput').value) || 0;
       const porcentajeIva = parseFloat(document.getElementById('ivaInput').value) || 0;
 
-      // Actualizar datos de rendimientos
       const rendimiento = fuelMode === 'loaded' ? perfil.loadedKmL : perfil.emptyKmL;
       document.getElementById('activeKmL').value = `${rendimiento} km/L`;
       document.getElementById('emptyKmL').value = perfil.emptyKmL;
@@ -347,10 +337,8 @@
       document.getElementById('badgeUnidad').innerText = perfil.name;
       document.getElementById('capacidadDisplay').innerText = perfil.capacity;
 
-      // Casetas
       const costoCasetas = calcularCasetasAutomaticas(kilometros, perfil);
 
-      // Bloques Financieros
       const fleteBase = kilometros * tarifaPorKm;
       const litrosDiesel = rendimiento > 0 ? (kilometros / rendimiento) : 0;
       const costoDiesel = litrosDiesel * precioDiesel;
@@ -360,7 +348,6 @@
       const montoIva = subtotal * (porcentajeIva / 100);
       const granTotal = subtotal + montoIva;
 
-      // Renderizar a Interfaz con formato MXN
       const fmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
       document.getElementById('totalCotizado').innerText = fmt.format(granTotal);
       document.getElementById('fleteBaseAmount').innerText = fmt.format(fleteBase);
@@ -375,7 +362,6 @@
       document.getElementById('resumenDistancia').innerText = `${kilometros.toFixed(1)} km`;
       document.getElementById('tarifaBaseDisplay').innerText = fmt.format(tarifaPorKm) + ' / km';
 
-      // Tiempos Operativos
       const velocidad = parseFloat(document.getElementById('velocidadInput').value) || 70;
       if (velocidad > 0 && kilometros > 0) {
         const tiempoHoras = kilometros / velocidad;
@@ -389,26 +375,38 @@
       }
     }
 
-    // Vinculación de Eventos de Botón
-    document.getElementById('btnOrigen').addEventListener('click', () => buscarDireccion('origenInput', 'origen'));
-    document.getElementById('btnDestino').addEventListener('click', () => buscarDireccion('destinoInput', 'destino'));
+    document.getElementById('btnOrigen').addEventListener('click', async () => {
+      await buscarDireccion('origenInput', 'origen');
+      calcularDistanciaPorCoordenadas();
+      ejecutarRecalculoGlobal();
+    });
     
-    // CORRECCIÓN: El botón Calcular ahora busca los puntos en el mapa automáticamente si no han sido validados
+    document.getElementById('btnDestino').addEventListener('click', async () => {
+      await buscarDireccion('destinoInput', 'destino');
+      calcularDistanciaPorCoordenadas();
+      ejecutarRecalculoGlobal();
+    });
+    
     document.getElementById('btnCalcular').addEventListener('click', async function() {
       const origen = document.getElementById('origenInput').value;
       const destino = document.getElementById('destinoInput').value;
       
       document.getElementById('resumenRutaTexto').innerText = `${origen} -> ${destino}`;
       
-      // Intentar buscar dinámicamente ambas ubicaciones antes de correr el recalculo
-      const exitoOrigen = await buscarDireccion('origenInput', 'origen');
-      const exitoDestino = await buscarDireccion('destinoInput', 'destino');
+      await Promise.all([
+        buscarDireccion('origenInput', 'origen'),
+        buscarDireccion('destinoInput', 'destino')
+      ]);
       
-      // Si todo sale bien o el mapa ya tiene marcadores válidos, forzamos la actualización completa
+      calcularDistanciaPorCoordenadas();
       ejecutarRecalculoGlobal();
+
+      if (markerOrigen && markerDestino) {
+        const grupo = new L.featureGroup([markerOrigen, markerDestino]);
+        map.fitBounds(grupo.getBounds().pad(0.2));
+      }
     });
 
-    // Escuchadores en tiempo real
     const inputs = ['unitType', 'fuelMode', 'fuenteCasetas', 'inputKm', 'tarifaKmInput', 'casetasInput', 'maniobrasInput', 'ivaInput', 'dieselPrice', 'velocidadInput'];
     inputs.forEach(id => document.getElementById(id).addEventListener('input', ejecutarRecalculoGlobal));
     document.getElementById('unitType').addEventListener('change', ejecutarRecalculoGlobal);
